@@ -19,6 +19,7 @@ import com.amazonaws.service.apigateway.importer.SwaggerApiImporter;
 import com.google.inject.Inject;
 import com.wordnik.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
+import io.swagger.parser.util.SwaggerDeserializationResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -44,7 +45,9 @@ public class ApiGatewaySwaggerFileImporter implements SwaggerApiFileImporter {
                                 "Swagger file: %s", filePath));
 
         final Swagger swagger = parse(filePath);
-
+        if (swagger == null) {
+            throw new RuntimeException("Failed to parse "+filePath);
+        }
         return client.createApi(swagger, new File(filePath).getName());
     }
 
@@ -69,10 +72,17 @@ public class ApiGatewaySwaggerFileImporter implements SwaggerApiFileImporter {
     }
 
     private Swagger parse(String filePath) {
-        final Swagger swagger = parser.read(filePath);
+
+        final SwaggerDeserializationResult parsedResult = parser.readWithInfo(filePath);
+
+        Swagger swagger = parsedResult.getSwagger();
 
         if (swagger != null && swagger.getPaths() != null) {
             LOG.info("Parsed Swagger with " + swagger.getPaths().size() + " paths");
+        }
+        else
+        {
+            LOG.error("Parsing Swagger: "+parsedResult.getMessages());
         }
 
         return swagger;

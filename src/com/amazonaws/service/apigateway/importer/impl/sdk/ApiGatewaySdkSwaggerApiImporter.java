@@ -197,41 +197,48 @@ public class ApiGatewaySdkSwaggerApiImporter extends ApiGatewaySdkApiImporter im
 
     public void createMethod(RestApi api, Resource resource, String httpMethod,
                              Operation op, String modelContentType) {
-        PutMethodInput input = new PutMethodInput();
+        try
+        {
+            PutMethodInput input = new PutMethodInput();
 
-        input.setAuthorizationType(getAuthorizationType(op));
-        input.setApiKeyRequired(isApiKeyRequired(op));
+            input.setAuthorizationType(getAuthorizationType(op));
+            input.setApiKeyRequired(isApiKeyRequired(op));
 
-        // set input model if present in body
-        op.getParameters().stream().filter(p -> p.getIn().equals("body")).forEach(p -> {
-            BodyParameter bodyParam = (BodyParameter) p;
-            Optional<String> inputModel = getInputModel(bodyParam);
+            // set input model if present in body
+            op.getParameters().stream().filter(p -> p.getIn().equals("body")).forEach(p -> {
+                BodyParameter bodyParam = (BodyParameter) p;
+                Optional<String> inputModel = getInputModel(bodyParam);
 
-            input.setRequestModels(new HashMap<>());
-            // model already imported
-            if (inputModel.isPresent()) {
-                LOG.info("Found input model reference " + inputModel.get());
-                input.getRequestModels().put(modelContentType, inputModel.get());
-            } else {
-                // create new model from nested schema
-                String modelName = generateModelName(bodyParam);
-                LOG.info("Creating new model referenced from parameter: " + modelName);
+                input.setRequestModels(new HashMap<>());
+                // model already imported
+                if (inputModel.isPresent()) {
+                    LOG.info("Found input model reference " + inputModel.get());
+                    input.getRequestModels().put(modelContentType, inputModel.get());
+                } else {
+                    // create new model from nested schema
+                    String modelName = generateModelName(bodyParam);
+                    LOG.info("Creating new model referenced from parameter: " + modelName);
 
-                if (bodyParam.getSchema() == null) {
-                    throw new IllegalArgumentException("Body parameter '" + bodyParam.getName() + "' must have a schema defined");
+                    if (bodyParam.getSchema() == null) {
+                        throw new IllegalArgumentException("Body parameter '" + bodyParam.getName() + "' must have a schema defined");
+                    }
+
+                    createModel(api, modelName, bodyParam.getSchema(), swagger.getDefinitions(), modelContentType);
+                    input.getRequestModels().put(modelContentType, modelName);
                 }
+            });
 
-                createModel(api, modelName, bodyParam.getSchema(), swagger.getDefinitions(), modelContentType);
-                input.getRequestModels().put(modelContentType, modelName);
-            }
-        });
+            // create method
+            Method method = resource.putMethod(input, httpMethod.toUpperCase());
 
-        // create method
-        Method method = resource.putMethod(input, httpMethod.toUpperCase());
-
-        createMethodResponses(api, method, modelContentType, op.getResponses());
-        createMethodParameters(api, method, op.getParameters());
-        createIntegration(method, op.getVendorExtensions());
+            createMethodResponses(api, method, modelContentType, op.getResponses());
+            createMethodParameters(api, method, op.getParameters());
+            createIntegration(method, op.getVendorExtensions());
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException("Error creating method "+resource+" "+httpMethod+" "+op+" "+modelContentType, e);
+        }
     }
 
     private void createIntegration(Method method, Map<String, Object> vendorExtensions) {
