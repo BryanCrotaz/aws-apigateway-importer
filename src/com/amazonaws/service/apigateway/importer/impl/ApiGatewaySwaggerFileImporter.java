@@ -45,6 +45,10 @@ public class ApiGatewaySwaggerFileImporter implements SwaggerApiFileImporter {
 
         final Swagger swagger = parse(filePath);
 
+        if (swagger == null) {
+            throw new RuntimeException("Failed to parse swagger in "+filePath);
+        }
+
         return client.createApi(swagger, new File(filePath).getName());
     }
 
